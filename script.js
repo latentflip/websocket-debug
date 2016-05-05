@@ -92,7 +92,7 @@
     logs(options) {
       var options = options || {};
       var columns = options.columns || defaultColumns;
-      var filters = options.filters || {};
+      var filters = options.filters || options.filter || {};
       var limit = options.limit || null;
       var raw = options.raw || false;
       var msgs = messages;
