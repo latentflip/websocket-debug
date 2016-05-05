@@ -53,7 +53,7 @@ copy(websocketDebug.csv()) // to copy to clipboard
 
 //logs
 //nb: this could do with better formatting to handle commas/spaces in messages tbh
-"0,out,1462445613069,an outgoing message
+"0,out,1462445613069,an outgoing message \
 0,in,1462445613070,an incoming message"
 ```
 
