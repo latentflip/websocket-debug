@@ -97,12 +97,12 @@ websocketDebug.defaultColumns
 
 ### Options
 
-`log()`, `csv()` and `pretty()` all take the same options object. All options are optional. Here's an example showing all the options
+`logs()`, `csv()` and `pretty()` all take the same options object. All options are optional. Here's an example showing all the options
 
 Additionally, `live()` accepts the filters option
 
 ```
-websocketDebug.log({
+websocketDebug.logs({
     // columns and order to keep in each log
     // n.b. pretty() ignores this field
     columns: ['direction', 'msg'],
