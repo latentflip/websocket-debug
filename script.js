@@ -90,13 +90,16 @@
   const STYLE_IN = 'color:rgb(164, 86, 3);font-weight:bold';
   const STYLE_OUT = 'color:rgb(3, 194, 7);font-weight:bold';
 
-  const prettyPrintRow = (row, timedelta, options) => {
-    options = options || {};
+  const prettyPrintRow = (row, timedelta, { noxml, transform } = {}) => {
     let txt = row.msg.trim();
+
+    if (typeof transform === 'function') {
+      txt = transform(txt);
+    }
 
     // if it looks like xml, and noxml is not set, pretty print it
     // otherwise try parsing as json in case
-    if (!options.noxml && txt[0] === '<' && txt[txt.length - 1] === '>') {
+    if (!noxml && txt[0] === '<' && txt[txt.length - 1] === '>') {
       txt = prettyPrintXml(txt);
     } else {
       try {
@@ -126,7 +129,7 @@
     messages.push(message);
 
     if (live) {
-      if (objectMatchesFilterSet(message, liveOptions.filter || liveOptions.filters)) {
+      if (objectMatchesFilterSet(message, liveOptions.filter || liveOptions.filters || {})) {
         prettyPrintRow(message, message.time - live, liveOptions);
         live = message.time;
       }
@@ -170,17 +173,25 @@
   const defaultColumns = ['socket_id', 'direction', 'time', 'msg'];
 
   const websocketDebug = window.websocketDebug = {
-    logs ({ columns = defaultColumns, filters, filter, limit = null, raw = false } = {}) {
+    logs ({ columns = defaultColumns, filters, filter, limit = null, raw = false, transform } = {}) {
       filters = filters || filter || {};
 
-      let logs = messages.map((msg) => {
-        if (!objectMatchesFilterSet(msg, filters)) {
+      let logs = messages.map((log) => {
+        if (!objectMatchesFilterSet(log, filters)) {
           return;
         }
-        if (raw) {
-          return msg;
+
+        if (typeof transform === 'function') {
+          log = Object.assign({}, log, {
+            msg: transform(log.msg)
+          });
         }
-        return columns.map((c) => msg[c]);
+
+        if (raw) {
+          return log;
+        }
+
+        return columns.map((c) => log[c]);
       }).filter((row) => !!row);
 
       if (limit) {

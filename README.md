@@ -133,6 +133,11 @@ websocketDebug.logs({
 
     // disable pretty printing xml in `pretty()` calls
     // n.b. only matters for `pretty()`
-    noxml: true
+    noxml: true,
+
+    // transform the message text before logging/pretty printing
+    // helpful if you want to only log part of a message, or extract xml that's in
+    // a json message for pretty printing
+    transform: (msg) => msg.slice(0, 10)
 })
 ```
