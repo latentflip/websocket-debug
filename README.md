@@ -101,7 +101,7 @@ websocketDebug.defaultColumns
 
 Additionally, `live()` accepts the filters option
 
-```
+```javascript
 websocketDebug.logs({
     // columns and order to keep in each log
     // n.b. pretty() ignores this field
