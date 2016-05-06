@@ -235,8 +235,9 @@
       messages = [];
     },
 
-    live (options) {
-      live = Date.now();
+    live (options = {}) {
+      // don't reset timestamps if just updating config
+      live = live || Date.now();
       liveOptions = options;
     },
 
