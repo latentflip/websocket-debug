@@ -1,84 +1,163 @@
-(function () {
-  var _WebSocket = window.WebSocket;
-  var id = 0;
-  var messages = [];
-  var defaultColumns = ['socket_id', 'direction', 'time', 'msg'];
-  var sockets = {
-  };
-  var live;
+'use strict';
 
-  var prettyPrintXml = function (xml, options) {
-    var div= document.createElement('div')
+(() => {
+  // helpers --------------------------------------------------------
+
+  // use chrome's built-in pretty logging of "html" elements to
+  // pretty print xml
+  const prettyPrintXml = (xml, options) => {
+    const div = document.createElement('div');
     div.innerHTML = xml;
     return div.firstChild;
   };
 
-
-  var isMatch = function (value, filter) {
+  const valueMatchesFilter = (value, filter) => {
     if (typeof filter === 'function') {
       return !!(filter(value));
     }
+
     if (filter instanceof RegExp) {
       return !!(value.match(filter));
     }
+
     return filter === value;
   };
 
-  var keep = function (object, filters) {
-    var keys = Object.keys(filters);
+  // checks if the object matches all the filters in the filterset
+  //
+  // each key in filters should match a key in object
+  // the filter for that key will be checked against the object's
+  // value for that key with valueMatchesFilter
+  //
+  // if the key in the filter is prefixed with "!" it will invert
+  // the match
+  const objectMatchesFilterSet = (object, filters) => {
+    const keys = Object.keys(filters);
+
     if (keys.length === 0) {
       return true;
     }
+
+    // the object must match all the filters
     return keys.every((k) => {
+      // invert if filter key starts with "!"
       if (k[0] === '!') {
-        return !isMatch(object[k.slice(1)], filters[k])
+        return !valueMatchesFilter(object[k.slice(1)], filters[k]);
       }
-      return isMatch(object[k], filters[k]);
+      return valueMatchesFilter(object[k], filters[k]);
     });
   };
 
-  var formatDelta = (delta) => {
-    var s = delta >= 0 ? '+' : '-';
-    if (delta < 1000) {
-      if (delta < 10) {
-        return `${s}${delta}ms  `;
-      } else if (delta < 100) {
-        return `${s}${delta}ms `;
-      } else {
-        return `${s}${delta}ms`;
+  // nicely format time delta (delta is in milliseconds)
+  // 0->9:        "+Nms  "
+  // 10->99:      "+NNms "
+  // 100->999:    "+NNNms"
+  // 1000->9999   "+N.NNs"
+  // 10000->59999 "+NN.Ns"
+  // 60000+       "+NNmNNs
+  const formatDelta = (delta) => {
+    const ONE_MINUTE = 60 * 1000;
+
+    // pos/neg sign
+    const s = delta >= 0 ? '+' : '-';
+
+    // ms only
+    if (delta < 10) { return `${s}${delta}ms  `; }
+    if (delta < 100) { return `${s}${delta}ms `; }
+    if (delta < 1000) { return `${s}${delta}ms`; }
+
+    // secs
+    if (delta < 10000) {
+      const secs = delta / 1000;
+      // 2 decimal places ideally, but toFixed rounds up
+      return `${s}${secs.toFixed(2).substr(0, 4)}s`;
+    }
+
+    if (delta < ONE_MINUTE) {
+      const secs = delta / 1000;
+
+      return `${s}${secs.toFixed(1).substr(0, 4)}s`;
+    }
+
+    // mins + secs
+    {
+      const mins = Math.floor(delta / ONE_MINUTE);
+      const secs = Math.floor((delta - (mins * ONE_MINUTE)) / 1000);
+      return `${s}${mins}m${secs}s`;
+    }
+  };
+
+  const STYLE_IN = 'color:rgb(164, 86, 3);font-weight:bold';
+  const STYLE_OUT = 'color:rgb(3, 194, 7);font-weight:bold';
+
+  const prettyPrintRow = (row, timedelta, options) => {
+    options = options || {};
+    let txt = row.msg.trim();
+
+    // if it looks like xml, and noxml is not set, pretty print it
+    // otherwise try parsing as json in case
+    if (!options.noxml && txt[0] === '<' && txt[txt.length - 1] === '>') {
+      txt = prettyPrintXml(txt);
+    } else {
+      try {
+        txt = JSON.parse(txt);
+      } catch (e) {}
+    }
+
+    const symbol = row.direction === 'in' ? '⬇︎' : '⬆︎';
+    const style = row.direction === 'in' ? STYLE_IN : STYLE_OUT;
+
+    // log prettily
+    console.log(`%c${symbol}${formatDelta(timedelta)}`, style, txt);
+  };
+
+  // override websocket, and export module to window ----------------
+  const _WebSocket = window.WebSocket;
+  const sockets = {};
+  let socketIdCounter = 0;
+  let messages = [];
+
+  // if disabled will be false
+  // if enabled will be timestamp of last message
+  let live = false;
+  let liveOptions = {};
+
+  const addMessage = (message) => {
+    messages.push(message);
+
+    if (live) {
+      if (objectMatchesFilterSet(message, liveOptions.filter || liveOptions.filters)) {
+        prettyPrintRow(message, message.time - live, liveOptions);
+        live = message.time;
       }
     }
-    if (delta < 60*1000) {
-      const dp = delta >= 10*1000 ? 1 : 2;
-      return `${s}${(delta/1000).toFixed(dp)}s`;
-    }
-    var mins = Math.floor(delta/(60*1000));
-    var secs = Math.floor((delta - (mins * 60 * 1000)) / 1000);
-    return `${s}${mins}m${secs}s`;
-  }
-  window.formatDelta = formatDelta;
+  };
 
-  window.WebSocket = function (url, protocols) {
-    var _id = id++;
-    sockets[url] = _id;
+  // replace native websocket constructor
+  window.WebSocket = function WebSocket (url, protocols) {
+    // save socket url in the id map for referencing later
+    const id = socketIdCounter++;
+    sockets[url] = id;
 
-    var socket = new _WebSocket(url, protocols);
+    // init the socket
+    const socket = new _WebSocket(url, protocols);
 
-    var _send = socket.send;
-
+    // replace Websocket's send method with a logging one
+    const _send = socket.send;
     socket.send = function (msg) {
-      messages.push({
-        socket_id: _id,
+      addMessage({
+        socket_id: id,
         direction: 'out',
         time: Date.now(),
-        msg: msg
+        msg
       });
       _send.call(this, msg);
-    }
+    };
 
-    socket.addEventListener('message', function (msg) {
-      messages.push({
-        socket_id: _id,
+    // add an event listener for incoming messages
+    socket.addEventListener('message', (msg) => {
+      addMessage({
+        socket_id: id,
         direction: 'in',
         time: Date.now(),
         msg: msg.data
@@ -86,79 +165,73 @@
     });
 
     return socket;
-  }
+  };
 
-  window.websocketDebug = {
-    logs(options) {
-      var options = options || {};
-      var columns = options.columns || defaultColumns;
-      var filters = options.filters || options.filter || {};
-      var limit = options.limit || null;
-      var raw = options.raw || false;
-      var msgs = messages;
+  const defaultColumns = ['socket_id', 'direction', 'time', 'msg'];
 
-      if (limit) {
-        msgs = msgs.slice(-1*limit);
-      }
+  const websocketDebug = window.websocketDebug = {
+    logs ({ columns = defaultColumns, filters, filter, limit = null, raw = false } = {}) {
+      filters = filters || filter || {};
 
-      return msgs.map((msg) => {
-        if (!keep(msg, filters)) {
+      let logs = messages.map((msg) => {
+        if (!objectMatchesFilterSet(msg, filters)) {
           return;
         }
         if (raw) {
           return msg;
         }
         return columns.map((c) => msg[c]);
-      })
-        .filter((row) => !!row) // remove filtered rows
+      }).filter((row) => !!row);
+
+      if (limit) {
+        logs = logs.slice(-limit);
+      }
+
+      return logs;
     },
 
-    pretty(options) {
-      options = options || {};
-      var opts = Object.assign({}, options, {
+    pretty (options = {}) {
+      // call the base logger, overriding some options we don't care about
+      const opts = Object.assign({}, options, {
         columns: undefined,
         raw: true
       });
+      const rows = websocketDebug.logs(opts);
 
-      var rows = websocketDebug.logs(opts)
-      var lastTime = rows[0] && rows[0].time;
+      let lastTime = rows[0] && rows[0].time;
 
       rows.forEach((row) => {
-        var txt = row.msg.trim();
-        if (!options.noxml && txt[0] === '<' && txt[txt.length - 1] === '>') {
-          txt = prettyPrintXml(txt);
-        } else {
-          try {
-            txt = JSON.parse(txt);
-          } catch (e) {
-            console.log(e)
-          }
-        }
-
-        if (row.direction === 'in') {
-          console.log(`%c⬇︎ ${formatDelta(row.time - lastTime)}`, 'color:rgb(164, 86, 3);font-weight:bold', txt);
-        } else {
-          console.log(`%c⬆︎ ${formatDelta(row.time - lastTime)}`, 'color:rgb(3, 194, 7);font-weight:bold', txt);
-        }
+        const timedelta = row.time - lastTime;
         lastTime = row.time;
+        prettyPrintRow(row, timedelta, { noxml: options.noxml });
       });
     },
 
-    csv(options) {
+    csv (options) {
       return websocketDebug.logs(options)
                            .join('\n');
     },
 
-    get sockets() {
+    get sockets () {
       return sockets;
     },
 
-    get defaultColumns() {
+    get defaultColumns () {
       return defaultColumns;
     },
 
-    clear() {
+    clear () {
       messages = [];
+    },
+
+    live (options) {
+      live = Date.now();
+      liveOptions = options;
+    },
+
+    stopLive () {
+      live = false;
+      liveOptions = null;
     }
   };
 })();

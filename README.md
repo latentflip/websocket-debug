@@ -28,6 +28,17 @@ See the [options](#options) section to understand the options that can be passed
 
 ![screenshot](./screenshot.png)
 
+#### `websocketDebug.live(options)`
+
+Will continue to pretty print logs as they happen. Live accepts the `filter` option to filter which logs are printed.
+
+Continues until `stopLive()` is called
+
+#### `websocketDebug.stopLive()`
+
+Stops live printing if in progress.
+
+
 #### `websocketDebug.logs(options)`
 
 ```javascript
@@ -87,6 +98,8 @@ websocketDebug.defaultColumns
 ### Options
 
 `log()`, `csv()` and `pretty()` all take the same options object. All options are optional. Here's an example showing all the options
+
+Additionally, `live()` accepts the filters option
 
 ```
 websocketDebug.log({

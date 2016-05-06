@@ -1,0 +1,26 @@
+{
+  "name": "websocket-debug",
+  "description": "Chrome devtool's websocket frame debugger is kinda okay, but kinda sucks if you're doing xmpp as it won't reformat xml messages, and also has no ability to find/filter messages.",
+  "version": "1.0.0",
+  "bugs": {
+    "url": "https://github.com/latentflip/websocket-debug/issues"
+  },
+  "devDependencies": {
+    "git-validate": "^2.1.4",
+    "semistandard": "^7.0.5"
+  },
+  "homepage": "https://github.com/latentflip/websocket-debug#readme",
+  "keywords": [],
+  "license": "ISC",
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/latentflip/websocket-debug.git"
+  },
+  "scripts": {
+    "lint": "semistandard"
+  },
+  "pre-commit": [
+    "lint"
+  ]
+}

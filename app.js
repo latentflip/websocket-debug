@@ -1,6 +1,10 @@
-var s = document.createElement('script');
+/* global chrome */
+'use strict';
+
+const s = document.createElement('script');
 s.src = chrome.extension.getURL('script.js');
-s.onload = function() {
+s.onload = function () {
   this.parentNode.removeChild(this);
 };
+
 (document.head || document.documentElement).appendChild(s);
