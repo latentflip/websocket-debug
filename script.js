@@ -1,14 +1,14 @@
+/* eslint-env browser */
 'use strict';
 
 (() => {
   // helpers --------------------------------------------------------
 
-  // use chrome's built-in pretty logging of "html" elements to
+  // use chrome's built-in pretty logging of "xml" elements to
   // pretty print xml
   const prettyPrintXml = (xml, options) => {
-    const div = document.createElement('div');
-    div.innerHTML = xml;
-    return div.firstChild;
+    const parser = new DOMParser();
+    return parser.parseFromString(xml, 'text/xml').firstChild;
   };
 
   const valueMatchesFilter = (value, filter) => {
